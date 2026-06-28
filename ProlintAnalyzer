@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HP ProLiant Performance Analyzer 2001-2003</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+    :root {
+        --hp-blue: #0096D6;
+        --hp-dark: #212121;
+        --hp-light-gray: #F5F5F5;
+        --hp-danger: #D32F2F;
+        --hp-warning: #F57C00;
+        --hp-success: #388E3C;
+    }
+    
+    * {
+        font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    body {
+        background: var(--hp-light-gray);
+        padding-bottom: 0;
+    }
+    
+    .gradient-hp {
+        background: linear-gradient(135deg, #0096D6 0%, #0073A8 100%);
+    }
+    
+    .sidebar-link {
+        transition: all 0.3s ease;
+        border-left: 3px solid transparent;
+    }
+    
+    .sidebar-link:hover {
+        background: rgba(0, 150, 214, 0.08);
+        border-left: 3px solid var(--hp-blue);
+    }
+    
+    .sidebar-link.active {
+        background: rgba(0, 150, 214, 0.12);
+        border-left: 3px solid var(--hp-blue);
+        color: var(--hp-blue);
+        font-weight: 600;
+    }
+    
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+    }
+    
+    .status-healthy { background: var(--hp-success); }
+    .status-warning { background: var(--hp-warning); }
+    .status-critical { background: var(--hp-danger); }
+    
+    .card {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06);
+        transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.08);
+    }
+    
+    .btn-primary {
+        background: var(--hp-blue);
+        transition: all 0.3s ease;
+        min-height: 44px;
+    }
+    
+    .btn-primary:hover {
+        background: #0073A8;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 150, 214, 0.3);
+    }
+    
+    .bottleneck-alert {
+        animation: slideIn 0.5s ease;
+        border-left: 4px solid var(--hp-danger);
+    }
+    
+    @keyframes slideIn {
+        from { transform: translateX(-20px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .metric-bar {
+        height: 6px;
+        background: #E0E0E0;
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .metric-fill {
+        height: 100%;
+        transition: width 0.5s ease;
+        border-radius: 3px;
+    }
+
+    .mobile-tab-bar {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: white;
+        box-shadow: 0 -2px 12px rgba(0,0,0,0.1);
+        z-index: 40;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .mobile-tab-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 4px;
+        color: var(--hp-dark);
+        min-height: 56px;
+        transition: all 0.2s;
+        text-decoration: none;
+    }
+
+    .mobile-tab-item.active {
+        color: var(--hp-blue);
+    }
+
+    .mobile-tab-item svg {
+        width: 24px;
+        height: 24px;
+        margin-bottom: 2px;
+    }
+
+    .mobile-tab-item span {
+        font-size: 10px;
+        font-weight: 500;
+    }
+
+    .server-card-mobile {
+        display: none;
+    }
+    
+    @media (max-width: 768px) {
+        body {
+            padding-bottom: 64px;
+        }
+
+        .hide-mobile {
+            display: none;
+        }
+
+        .mobile-tab-bar {
+            display: flex;
+        }
+
+        .hp-logo {
+            width: 28px;
+            height: 28px;
+        }
+
+        .table-responsive {
+            display: none;
+        }
+
+        .server-card-mobile {
+            display: block;
+        }
+
+        input, select, textarea, button {
+            min-height: 44px;
+            font-size: 16px !important;
+        }
+
+        .card {
+            margin-left: -0.5rem;
+            margin-right: -0.5rem;
+            border-radius: 0;
+        }
+
+        @media (min-width: 640px) {
+            .card {
+                margin-left: 0;
+                margin-right: 0;
+                border-radius: 8px;
+            }
+        }
+    }
+
+    @media (max-width: 390px) {
+        .table-responsive {
+            font-size: 0.75rem;
+        }
+    }
+
+    input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--hp-blue);
+        box-shadow: 0 0 0 3px rgba(0, 150, 214, 0.1);
+    }
+</style>
+</head>
+<body class="text-gray-800">
+    <!-- Header -->
+    <header class="gradient-hp text-white shadow-lg fixed top-0 left-0 right-0 z-50">
+        <div class="flex items-center justify-between px-3 md:px-4 py-2 md:py-3">
+            <div class="flex items-center gap-2 md:gap-3">
+                <button id="menuToggle" class="md:hidden p-2 hover:bg-white/10 rounded">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <svg class="hp-logo w-8 h-8" viewBox="0 0 100 100" fill="white">
+                    <circle cx="50" cy="50" r="45" stroke="white" stroke-width="3" fill="none"/>
+                    <text x="50" y="62" text-anchor="middle" font-size="36" font-weight="700" fill="white">hp</text>
+                </svg>
+                <div>
+                    <h1 class="text-base md:text-xl font-semibold">ProLiant Performance Analyzer</h1>
+                    <p class="text-xs opacity-90 hidden sm:block">Version 2001-2003</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs md:text-sm">
+                <span class="hidden sm:inline">Connected to CIM</span>
+                <span class="status-dot status-healthy"></span>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex pt-14 md:pt-16">
+        <!-- Sidebar -->
+        <aside id="sidebar" class="fixed md:static inset-y-0 left-0 z-40 w-64 bg-white shadow-lg transform -translate-x-full md:translate-x-0 transition-transform duration-300 pt-14 md:pt-0">
+            <nav class="p-4 space-y-1">
+                <a href="#" class="sidebar-link active flex items-center gap-3 px-4 py-3 rounded" data-tab="dashboard">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded" data-tab="admin">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    ProLiant Administration
+                </a>
+                <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded" data-tab="licensing">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                    </svg>
+                    Licensing
+                </a>
+                <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded" data-tab="analysis">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+                    </svg>
+                    Server Analysis
+                </a>
+                <a href="#" class="sidebar-link flex items-center gap-3 px-4 py-3 rounded" data-tab="about">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    About
+                </a>
+            </nav>
+            <div class="absolute bottom-4 left-4 right-4 text-xs text-gray-500">
+                <p class="border-t pt-3">Desktop Unit Test App Available</p>
+                <p class="mt-1">Same functionality via ActiveX/COM</p>
+            </div>
+        </aside>
+
+        <!-- Overlay for mobile -->
+        <div id="overlay" class="fixed inset-0 bg-black/50 z-30 hidden md:hidden"></div>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-3 sm:p-4 md:p-6 md:ml-0 min-w-0">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content">
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Server Monitoring Overview</h2>
+                    <p class="text-sm text-gray-600 mt-1">Real-time performance monitoring via Compaq Inside Manager</p>
+                </div>
+
+                <!-- Alert Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
+                    <div class="card p-3 md:p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs md:text-sm text-gray-600">Total Servers</p>
+                                <p class="text-2xl md:text-3xl font-bold text-gray-900">12</p>
+                            </div>
+                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6" style="color: #0096D6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M4 1h16a1 1 0 011 1v18a1 1 0 01-1 1H4a1 1 0 01-1-1V2a1 1 0 011-1zm0 2v16h16V3H4zm2 2h12v2H6V5zm0 3h12v2H6V8zm0 3h8v2H6v-2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card p-3 md:p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs md:text-sm text-gray-600">Healthy</p>
+                                <p class="text-2xl md:text-3xl font-bold" style="color: #388E3C">8</p>
+                            </div>
+                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-green-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6" style="color: #388E3C" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card p-3 md:p-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs md:text-sm text-gray-600">Bottlenecks</p>
+                                <p class="text-2xl md:text-3xl font-bold" style="color: #D32F2F">4</p>
+                            </div>
+                            <div class="w-10 h-10 md:w-12 md:h-12 rounded-full bg-red-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 md:w-6 md:h-6" style="color: #D32F2F" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottleneck Alerts -->
+                <div class="card p-3 md:p-4 mb-4 md:mb-6">
+                    <h3 class="text-base md:text-lg font-semibold mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5" style="color: #D32F2F" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                        </svg>
+                        Active Bottleneck Alerts
+                    </h3>
+                    <div class="space-y-2">
+                        <div class="bottleneck-alert bg-red-50 p-3 rounded flex items-start gap-3">
+                            <span class="status-dot status-critical mt-1 flex-shrink-0"></span>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-sm">PL-DB-01: Critical Disk I/O Bottleneck</p>
+                                <p class="text-xs text-gray-600 break-words">Queue depth: 342 | Latency: 127ms | Threshold exceeded for 15 min</p>
+                            </div>
+                        </div>
+                        <div class="bottleneck-alert bg-orange-50 p-3 rounded flex items-start gap-3" style="border-left-color: #F57C00">
+                            <span class="status-dot status-warning mt-1 flex-shrink-0"></span>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-semibold text-sm">PL-APP-03: Memory Pressure Detected</p>
+                                <p class="text-xs text-gray-600 break-words">Memory utilization: 94% | Page faults: 12,450/sec</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Server Table / Cards -->
+                <div class="card overflow-hidden">
+                    <div class="p-3 md:p-4 border-b">
+                        <h3 class="text-base md:text-lg font-semibold">ProLiant Servers</h3>
+                    </div>
+                    <!-- Desktop Table -->
+                    <div class="overflow-x-auto table-responsive">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-xs uppercase text-gray-700">
+                                <tr>
+                                    <th class="px-4 py-3 text-left">Server Name</th>
+                                    <th class="px-4 py-3 text-left">Status</th>
+                                    <th class="px-4 py-3 text-left">CPU</th>
+                                    <th class="px-4 py-3 text-left hide-mobile">Memory</th>
+                                    <th class="px-4 py-3 text-left hide-mobile">Disk I/O</th>
+                                    <th class="px-4 py-3 text-left">Bottleneck Detected</th>
+                                </tr>
+                            </thead>
+                            <tbody id="serverTableBody" class="divide-y">
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Mobile Cards -->
+                    <div id="serverCardContainer" class="server-card-mobile divide-y">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Administration Tab -->
+            <div id="admin" class="tab-content hidden">
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">ProLiant Administration</h2>
+                    <p class="text-sm text-gray-600 mt-1">Configure monitoring preferences and licensing</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                    <!-- Monitoring Preferences -->
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Monitoring Preferences</h3>
+                        <form id="monitoringForm" class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Polling Interval (seconds)</label>
+                                <select class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base">
+                                    <option>30</option>
+                                    <option selected>60</option>
+                                    <option>120</option>
+                                    <option>300</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">CPU Threshold (%)</label>
+                                <input type="number" value="85" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Memory Threshold (%)</label>
+                                <input type="number" value="90" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Disk I/O Threshold (ms)</label>
+                                <input type="number" value="100" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Notification Email</label>
+                                <input type="email" placeholder="admin@company.com" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base">
+                            </div>
+                            <button type="submit" class="btn-primary w-full text-white py-3 px-4 rounded-lg font-semibold text-base">
+                                Save Preferences
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Licensing Section -->
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Licensing Management</h3>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <p class="text-sm font-semibold text-blue-900">1 Free License Included</p>
+                            <p class="text-xs text-blue-700 mt-1">Each ProLiant Server purchase includes one complimentary Performance Analyzer license</p>
+                        </div>
+                        <a href="https://www.hp.com/us-en/shop/tech-takes/business-server-licensing" target="_blank" class="btn-primary block text-center text-white py-3 px-4 rounded-lg font-semibold mb-4 text-base">
+                            Acquire License from HP
+                        </a>
+                        
+                        <h4 class="font-semibold text-sm mb-3 mt-6">Licensed Servers</h4>
+                        <div class="overflow-x-auto -mx-4 md:mx-0">
+                            <div class="inline-block min-w-full px-4 md:px-0">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-2 py-2 text-left whitespace-nowrap">Server Name</th>
+                                            <th class="px-2 py-2 text-left whitespace-nowrap">License Key</th>
+                                            <th class="px-2 py-2 text-left whitespace-nowrap">Status</th>
+                                            <th class="px-2 py-2 text-left whitespace-nowrap">Expiry</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y">
+                                        <tr>
+                                            <td class="px-2 py-2">PL-DB-01</td>
+                                            <td class="px-2 py-2 font-mono">HPPA-2001-XXXX</td>
+                                            <td class="px-2 py-2"><span class="status-dot status-healthy"></span> Active</td>
+                                            <td class="px-2 py-2">2024-12-31</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-2 py-2">PL-APP-03</td>
+                                            <td class="px-2 py-2 font-mono">HPPA-2001-YYYY</td>
+                                            <td class="px-2 py-2"><span class="status-dot status-healthy"></span> Active</td>
+                                            <td class="px-2 py-2">2024-12-31</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="px-2 py-2">PL-WEB-05</td>
+                                            <td class="px-2 py-2 font-mono">HPPA-2002-ZZZZ</td>
+                                            <td class="px-2 py-2"><span class="status-dot status-warning"></span> Expiring</td>
+                                            <td class="px-2 py-2">2023-11-15</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Licensing Tab -->
+            <div id="licensing" class="tab-content hidden">
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">License Management</h2>
+                    <p class="text-sm text-gray-600 mt-1">Apply licenses to servers detected via Compaq Inside Manager</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Apply License Key</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium mb-2">License Key Format: HPPA-YYYY-XXXX-XXXX</label>
+                                <input type="text" id="licenseKey" placeholder="HPPA-2003-XXXX-XXXX" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-base">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-2">Select Server</label>
+                                <select id="serverSelect" class="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-base">
+                                    <option>PL-FILE-07 (Unlicensed)</option>
+                                    <option>PL-TEST-09 (Unlicensed)</option>
+                                    <option>PL-BACKUP-11 (Unlicensed)</option>
+                                </select>
+                            </div>
+                            <button id="applyLicense" class="btn-primary w-full text-white py-3 px-4 rounded-lg font-semibold text-base">
+                                Apply License
+                            </button>
+                        </div>
+                        <div class="mt-4 p-3 bg-gray-50 rounded text-xs">
+                            <p class="font-semibold mb-1">Instructions:</p>
+                            <ol class="list-decimal list-inside space-y-1 text-gray-700">
+                                <li>Obtain license key from HP Licensing Portal</li>
+                                <li>Select unlicensed server from CIM discovery</li>
+                                <li>Enter 16-character license key</li>
+                                <li>Click Apply to activate monitoring</li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Unlicensed Servers Detected</h3>
+                        <p class="text-sm text-gray-600 mb-4">Discovered via Compaq Inside Manager (CIM)</p>
+                        <div class="space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-yellow-50 border border-yellow-200 rounded gap-2">
+                                <div>
+                                    <p class="font-semibold text-sm">PL-FILE-07</p>
+                                    <p class="text-xs text-gray-600">IP: 192.168.1.107 | DL380 G3</p>
+                                </div>
+                                <span class="text-xs px-2 py-1 bg-yellow-200 text-yellow-800 rounded self-start sm:self-center">Unlicensed</span>
+                            </div>
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-yellow-50 border border-yellow-200 rounded gap-2">
+                                <div>
+                                    <p class="font-semibold text-sm">PL-TEST-09</p>
+                                    <p class="text-xs text-gray-600">IP: 192.168.1.109 | DL360 G4</p>
+                                </div>
+                                <span class="text-xs px-2 py-1 bg-yellow-200 text-yellow-800 rounded self-start sm:self-center">Unlicensed</span>
+                            </div>
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 bg-yellow-50 border border-yellow-200 rounded gap-2">
+                                <div>
+                                    <p class="font-semibold text-sm">PL-BACKUP-11</p>
+                                    <p class="text-xs text-gray-600">IP: 192.168.1.111 | DL580 G2</p>
+                                </div>
+                                <span class="text-xs px-2 py-1 bg-yellow-200 text-yellow-800 rounded self-start sm:self-center">Unlicensed</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Server Analysis Tab -->
+            <div id="analysis" class="tab-content hidden">
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Server Analysis</h2>
+                    <p class="text-sm text-gray-600 mt-1">Detailed performance metrics and bottleneck identification</p>
+                </div>
+
+                <div class="card p-4 md:p-6 mb-4 md:mb-6">
+                    <label class="block text-sm font-medium mb-2">Select Server for Analysis</label>
+                    <select id="analysisServerSelect" class="w-full md:w-64 px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-base">
+                        <option>PL-DB-01</option>
+                        <option>PL-APP-03</option>
+                        <option>PL-WEB-05</option>
+                        <option>PL-FILE-07</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">CPU Utilization</h3>
+                        <div class="relative" style="height: 300px;">
+                            <canvas id="cpuChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card p-4 md:p-6">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Memory Usage</h3>
+                        <div class="relative" style="height: 300px;">
+                            <canvas id="memoryChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="card p-4 md:p-6 lg:col-span-2">
+                        <h3 class="text-base md:text-lg font-semibold mb-4">Disk I/O Performance</h3>
+                        <div class="relative" style="height: 300px;">
+                            <canvas id="diskChart"></canvas>
+                        </div>
+                        <div class="mt-4 p-3 bg-red-50 border-l-4 border-red-500 rounded">
+                            <p class="text-sm font-semibold text-red-900">⚠ Bottleneck Detected</p>
+                            <p class="text-xs text-red-700 mt-1">Disk queue length consistently above threshold. Consider storage upgrade or I/O optimization.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- About Tab -->
+            <div id="about" class="tab-content hidden">
+                <div class="mb-4 md:mb-6">
+                    <h2 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">About</h2>
+                    <p class="text-sm text-gray-600 mt-1">System information and architecture</p>
+                </div>
+
+                <div class="card p-4 md:p-6 mb-6">
+                    <div class="flex flex-col sm:flex-row items-start gap-4 mb-6">
+                        <svg class="w-12 h-12 md:w-16 md:h-16 flex-shrink-0" viewBox="0 0 100 100" fill="#0096D6">
+                            <circle cx="50" cy="50" r="45" stroke="#0096D6" stroke-width="3" fill="none"/>
+                            <text x="50" y="62" text-anchor="middle" font-size="36" font-weight="700" fill="#0096D6">hp</text>
+                        </svg>
+                        <div>
+                            <h3 class="text-xl md:text-2xl font-bold">HP ProLiant Performance Analyzer</h3>
+                            <p class="text-gray-600">Version 2001-2003</p>
+                            <p class="text-sm text-gray-500 mt-2">Enterprise Server Performance Monitoring Solution</p>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-6">
+                        <h4 class="font-semibold mb-3">Technical Architecture</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                            <div class="bg-gray-50 p-4 rounded">
+                                <p class="font-semibold mb-2" style="color: #0096D6">Frontend</p>
+                                <p class="text-gray-700">JavaScript-based web interface with modern responsive design</p>
+                            </div>
+                            <div class="bg-gray-50 p-4 rounded">
+                                <p class="font-semibold mb-2" style="color: #0096D6">Backend</p>
+                                <p class="text-gray-700">Visual C++ 6.0 ActiveX/COM/DCOM components</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-6 mt-6">
+                        <h4 class="font-semibold mb-3">Core Services</h4>
+                        <ul class="space-y-2 text-sm text-gray-700">
+                            <li class="flex items-start gap-2">
+                                <svg class="w-5 h-5 mt-0.5 flex-shrink-0" style="color: #0096D6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                Identifies servers monitored by Compaq Inside Manager (CIM)
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <svg class="w-5 h-5 mt-0.5 flex-shrink-0" style="color: #0096D6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                Communicates with CIM for real-time performance data acquisition
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <svg class="w-5 h-5 mt-0.5 flex-shrink-0" style="color: #0096D6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                Provides licensed server list to CIM polling service
+                            </li>
+                            <li class="flex items-start gap-2">
+                                <svg class="w-5 h-5 mt-0.5 flex-shrink-0" style="color: #0096D6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                                </svg>
+                                Periodic communication to Licensing COM Component
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="border-t pt-6 mt-6">
+                        <h4 class="font-semibold mb-3">Desktop Unit Test Application</h4>
+                        <div class="bg-blue-50 p-4 rounded text-sm">
+                            <p class="text-gray-700">A standalone desktop application is available that provides identical functionality through ActiveX controls. This native Windows application communicates directly with the COM/DCOM backend for testing and validation purposes.</p>
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-6 mt-6 text-xs text-gray-500">
+                        <p>© 2001-2003 Hewlett-Packard Company. All rights reserved.</p>
+                        <p class="mt-1">ProLiant and Compaq Inside Manager are trademarks of HP.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile Bottom Tab Bar -->
+    <nav class="mobile-tab-bar">
+        <a href="#" class="mobile-tab-item active" data-tab="dashboard">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            <span>Dashboard</span>
+        </a>
+        <a href="#" class="mobile-tab-item" data-tab="admin">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <span>Admin</span>
+        </a>
+        <a href="#" class="mobile-tab-item" data-tab="licensing">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+            </svg>
+            <span>Licensing</span>
+        </a>
+        <a href="#" class="mobile-tab-item" data-tab="analysis">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path>
+            </svg>
+            <span>Analysis</span>
+        </a>
+        <a href="#" class="mobile-tab-item" data-tab="about">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>About</span>
+        </a>
+    </nav>
+
+    <script>
+        // Server data
+        const servers = [
+            { name: 'PL-DB-01', status: 'critical', cpu: 94, memory: 87, diskio: 127, bottleneck: 'Disk I/O' },
+            { name: 'PL-APP-03', status: 'warning', cpu: 76, memory: 94, diskio: 45, bottleneck: 'Memory' },
+            { name: 'PL-WEB-05', status: 'healthy', cpu: 42, memory: 56, diskio: 23, bottleneck: 'None' },
+            { name: 'PL-FILE-07', status: 'healthy', cpu: 38, memory: 62, diskio: 18, bottleneck: 'None' },
+            { name: 'PL-MAIL-02', status: 'warning', cpu: 81, memory: 71, diskio: 67, bottleneck: 'CPU' },
+            { name: 'PL-TEST-09', status: 'healthy', cpu: 28, memory: 45, diskio: 12, bottleneck: 'None' },
+            { name: 'PL-BACKUP-11', status: 'healthy', cpu: 15, memory: 34, diskio: 89, bottleneck: 'None' },
+            { name: 'PL-DEV-04', status: 'healthy', cpu: 51, memory: 58, diskio: 34, bottleneck: 'None' },
+            { name: 'PL-PROXY-06', status: 'critical', cpu: 91, memory: 88, diskio: 54, bottleneck: 'CPU/Memory' },
+            { name: 'PL-DNS-08', status: 'healthy', cpu: 22, memory: 31, diskio: 8, bottleneck: 'None' },
+            { name: 'PL-STORAGE-10', status: 'warning', cpu: 67, memory: 79, diskio: 102, bottleneck: 'Disk I/O' },
+            { name: 'PL-VPN-12', status: 'healthy', cpu: 44, memory: 52, diskio: 19, bottleneck: 'None' }
+        ];
+
+        // Populate server table for desktop
+        function renderServerTable() {
+            const tbody = document.getElementById('serverTableBody');
+            tbody.innerHTML = servers.map(server => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-medium">${server.name}</td>
+                    <td class="px-4 py-3">
+                        <span class="flex items-center gap-2">
+                            <span class="status-dot status-${server.status}"></span>
+                            <span class="capitalize text-xs">${server.status}</span>
+                        </span>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                            <div class="metric-bar flex-1 max-w-[80px]">
+                                <div class="metric-fill" style="width: ${server.cpu}%; background: ${server.cpu > 85 ? '#D32F2F' : server.cpu > 70 ? '#F57C00' : '#388E3C'}"></div>
+                            </div>
+                            <span class="text-xs w-8">${server.cpu}%</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 hide-mobile">
+                        <div class="flex items-center gap-2">
+                            <div class="metric-bar flex-1 max-w-[80px]">
+                                <div class="metric-fill" style="width: ${server.memory}%; background: ${server.memory > 90 ? '#D32F2F' : server.memory > 75 ? '#F57C00' : '#388E3C'}"></div>
+                            </div>
+                            <span class="text-xs w-8">${server.memory}%</span>
+                        </div>
+                    </td>
+                    <td class="px-4 py-3 hide-mobile text-xs">${server.diskio}ms</td>
+                    <td class="px-4 py-3">
+                        <span class="text-xs px-2 py-1 rounded ${server.bottleneck === 'None' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${server.bottleneck}</span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Populate server cards for mobile
+        function renderServerCards() {
+            const container = document.getElementById('serverCardContainer');
+            container.innerHTML = servers.map(server => `
+                <div class="p-4">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="flex-1">
+                            <h4 class="font-semibold text-base">${server.name}</h4>
+                            <div class="flex items-center gap-2 mt-1">
+                                <span class="status-dot status-${server.status}"></span>
+                                <span class="capitalize text-xs text-gray-600">${server.status}</span>
+                            </div>
+                        </div>
+                        <span class="text-xs px-2 py-1 rounded ${server.bottleneck === 'None' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${server.bottleneck}</span>
+                    </div>
+                    <div class="space-y-2">
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-gray-600">CPU</span>
+                                <span class="font-medium">${server.cpu}%</span>
+                            </div>
+                            <div class="metric-bar">
+                                <div class="metric-fill" style="width: ${server.cpu}%; background: ${server.cpu > 85 ? '#D32F2F' : server.cpu > 70 ? '#F57C00' : '#388E3C'}"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between text-xs mb-1">
+                                <span class="text-gray-600">Memory</span>
+                                <span class="font-medium">${server.memory}%</span>
+                            </div>
+                            <div class="metric-bar">
+                                <div class="metric-fill" style="width: ${server.memory}%; background: ${server.memory > 90 ? '#D32F2F' : server.memory > 75 ? '#F57C00' : '#388E3C'}"></div>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-600">Disk I/O</span>
+                            <span class="font-medium">${server.diskio}ms</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Tab navigation handler
+        function switchTab(tab) {
+            const allLinks = document.querySelectorAll('.sidebar-link, .mobile-tab-item');
+            allLinks.forEach(l => l.classList.remove('active'));
+            
+            document.querySelectorAll(`[data-tab="${tab}"]`).forEach(l => l.classList.add('active'));
+            
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+            document.getElementById(tab).classList.remove('hidden');
+            
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.add('-translate-x-full');
+                document.getElementById('overlay').classList.add('hidden');
+            }
+            
+            if (tab === 'analysis') {
+                setTimeout(renderCharts, 100);
+            }
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Tab navigation for sidebar and mobile tab bar
+        document.querySelectorAll('.sidebar-link, .mobile-tab-item').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tab = link.dataset.tab;
+                switchTab(tab);
+            });
+        });
+
+        // Mobile menu toggle
+        document.getElementById('menuToggle').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('-translate-x-full');
+            document.getElementById('overlay').classList.toggle('hidden');
+        });
+
+        document.getElementById('overlay').addEventListener('click', () => {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('overlay').classList.add('hidden');
+        });
+
+        // Form submissions
+        document.getElementById('monitoringForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Monitoring preferences saved successfully!\n\nConfiguration will be applied via COM/DCOM interface to the backend service.');
+        });
+
+        document.getElementById('applyLicense').addEventListener('click', () => {
+            const key = document.getElementById('licenseKey').value;
+            if (!key || !key.startsWith('HPPA-')) {
+                alert('Please enter a valid license key in format: HPPA-YYYY-XXXX-XXXX');
+                return;
+            }
+            alert('License applied successfully!\n\nServer is now being monitored by Compaq Inside Manager.\nLicense validation completed via Licensing COM Component.');
+            document.getElementById('licenseKey').value = '';
+        });
+
+        // Chart configuration
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100 },
+                x: { 
+                    ticks: {
+                        maxRotation: 0,
+                        autoSkip: true,
+                        maxTicksLimit: 8
+                    }
+                }
+            }
+        };
+
+        let cpuChart, memoryChart, diskChart;
+
+        function renderCharts() {
+            const labels = Array.from({length: 24}, (_, i) => `${i}:00`);
+            
+            // CPU Chart
+            const cpuCtx = document.getElementById('cpuChart');
+            if (cpuCtx) {
+                if (cpuChart) cpuChart.destroy();
+                cpuChart = new Chart(cpuCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: labels.map(() => Math.random() * 40 + 50),
+                            borderColor: '#0096D6',
+                            backgroundColor: 'rgba(0, 150, 214, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: chartOptions
+                });
+            }
+
+            // Memory Chart
+            const memoryCtx = document.getElementById('memoryChart');
+            if (memoryCtx) {
+                if (memoryChart) memoryChart.destroy();
+                memoryChart = new Chart(memoryCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: labels.map(() => Math.random() * 30 + 60),
+                            borderColor: '#F57C00',
+                            backgroundColor: 'rgba(245, 124, 0, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: chartOptions
+                });
+            }
+
+            // Disk Chart
+            const diskCtx = document.getElementById('diskChart');
+            if (diskCtx) {
+                if (diskChart) diskChart.destroy();
+                const diskData = labels.map(() => Math.random() * 80 + 80);
+                diskChart = new Chart(diskCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: diskData,
+                            borderColor: '#D32F2F',
+                            backgroundColor: 'rgba(211, 47, 47, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            segment: {
+                                borderColor: ctx => ctx.p0.parsed.y > 100 ? '#D32F2F' : '#0096D6'
+                            }
+                        }]
+                    },
+                    options: {
+                        ...chartOptions,
+                        scales: {
+                            y: { beginAtZero: true, max: 200 },
+                            x: chartOptions.scales.x
+                        }
+                    }
+                });
+            }
+        }
+
+        // Initialize
+        renderServerTable();
+        renderServerCards();
+
+        // Handle window resize for charts
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                if (document.getElementById('analysis').classList.contains('hidden') === false) {
+                    renderCharts();
+                }
+            }, 250);
+        });
+    </script>
+<script>(function(){document.addEventListener("click",function(e){var a=e.target.closest("[data-product-id]");if(!a)return;e.preventDefault();var pid=a.getAttribute("data-product-id");if(pid)parent.postMessage({type:"ecto-artifact-link-click",productId:pid},"*")})})();</script>
+</body>
+</html>
